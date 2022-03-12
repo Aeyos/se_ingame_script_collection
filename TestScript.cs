@@ -95,25 +95,32 @@ namespace IngameScript2
                     return options;
                 }
             }
-            public struct AValue
+            public abstract class AValue
             {
                 public System.Type type;
                 public string key;
-                public object value;
 
-                public AValue(string key, object value) { this.key = key; this.value = value; this.type = value.GetType(); }
+                public abstract void UpdateValue(string v);
+            }
+            public class AValue<T> : AValue
+            {
+                public T value;
 
-                public AValue(AValue originalValue, string newValue)
+                public AValue(string key, T value) {
+                    this.key = key;
+                    this.value = value;
+                    this.type = value.GetType();
+                }
+
+                public AValue(AValue<T> originalValue, string newValue)
                 {
                     this.key = originalValue.key;
                     this.type = originalValue.type;
-                    this.value = AValue.ParseValue(newValue, this.type, originalValue) ?? originalValue.value;
+                    var parsedValue = (T)(object)AValue<T>.ParseValue(newValue, this.type, originalValue);
+                    this.value = parsedValue != null ? parsedValue : originalValue.value;
                 }
 
-                public override string ToString()
-                {
-                    return $"{key}: {AValue.ValueToString(value, type)}";
-                }
+                
 
                 private static string ValueToString(object v, Type type)
                 {
@@ -127,50 +134,61 @@ namespace IngameScript2
                     return v.ToString();
                 }
 
-                private static object ParseValue(string value, Type type, AValue originalValue)
+                internal static object ParseValue(string value, Type type, AValue<T> originalValue)
                 {
                     if (value == null) return null;
-                    if (type.IsEquivalentTo(typeof(int))) return int.Parse(value);
-                    else if (type.IsEquivalentTo(typeof(float))) return float.Parse(value);
-                    else if (type.IsEquivalentTo(typeof(bool))) return bool.Parse(value);
-                    else if (type.IsEquivalentTo(typeof(Color)))
-                    {
-                        int[] split = value.Substring(1, value.Length - 2).Split(',').Select(x => int.Parse(x)).ToArray();
-                        return new Color(split[0], split[1], split[2]);
-                    }
-                    else if (type.IsEquivalentTo(typeof(Color[])))
-                    {
-                        if (value.Length < 2) return null;
-                        int[] split = value.Substring(1, value.Length - 2).Replace("<", "").Replace(">", "").Split(',').Select(x => { int y; int.TryParse(x, out y); return y; }).ToArray();
-                        if (split == null) return null;
-                        Color[] colors = new Color[split.Length / 3];
-
-                        for (var i = 0; i < colors.Length; i += 1)
+                    try {
+                        if (type.IsEquivalentTo(typeof(int))) return int.Parse(value);
+                        else if (type.IsEquivalentTo(typeof(float))) return float.Parse(value);
+                        else if (type.IsEquivalentTo(typeof(bool))) return bool.Parse(value);
+                        else if (type.IsEquivalentTo(typeof(Color)))
                         {
-                            colors[i] = new Color(split[i * 3], split[i * 3 + 1], split[i * 3 + 2]);
+                            int[] split = value.Substring(1, value.Length - 2).Split(',').Select(x => int.Parse(x)).ToArray();
+                            return new Color(split[0], split[1], split[2]);
                         }
-                        return colors;
-                    }
-                    else if (type.IsEquivalentTo(typeof(int[]))) return value.Split(',').Select(x => int.Parse(x.Trim()));
-                    else if (type.IsEquivalentTo(typeof(string))) return value;
-                    else if (type.IsEquivalentTo(typeof(AOptions))) return AOptions.Parse(value, (AOptions)originalValue.value);
-                    return "-";
+                        else if (type.IsEquivalentTo(typeof(Color[])))
+                        {
+                            if (value.Length < 2) return null;
+                            int[] split = value.Substring(1, value.Length - 2).Replace("<", "").Replace(">", "").Split(',').Select(x => { int y; int.TryParse(x, out y); return y; }).ToArray();
+                            if (split == null) return null;
+                            Color[] colors = new Color[split.Length / 3];
+
+                            for (var i = 0; i < colors.Length; i += 1)
+                            {
+                                colors[i] = new Color(split[i * 3], split[i * 3 + 1], split[i * 3 + 2]);
+                            }
+                            return colors;
+                        }
+                        else if (type.IsEquivalentTo(typeof(int[]))) return value.Split(',').Select(x => int.Parse(x.Trim()));
+                        else if (type.IsEquivalentTo(typeof(string))) return value;
+                        else if (type.IsEquivalentTo(typeof(AOptions))) return AOptions.Parse(value, (AOptions)(object)originalValue.value);
+                    } catch { }
+                    return null;
+                }
+                override public string ToString()
+                {
+                    return $"{key}: {AValue<T>.ValueToString(value, type)}";
+                }
+
+                override public void UpdateValue(string v)
+                {
+                    var parsedValue = AValue<T>.ParseValue(v, this.type, this);
+                    if (parsedValue != null) this.value = (T)(object)parsedValue;
                 }
             }
-            public AConfig(params AValue[] values) { this.serializableValues = values.ToList(); }
-            public List<AValue> serializableValues;
-            public T GetValue<T>(AValue valueDefinition)
-            {
-                var avalue = serializableValues.Find(x => x.key == valueDefinition.key);
-                if (avalue.Equals(null)) return default(T);
-                return (T)avalue.value;
+            public AConfig(params AValue[] values) {
+                foreach (var o in values) {
+                    this.serializableValues.Add(o.key, o);
+                };
             }
-            new public string ToString()
+            public Dictionary<string, AValue> serializableValues = new Dictionary<string, AValue>();
+            override
+            public string ToString()
             {
                 var sb = new StringBuilder();
                 foreach (var v in serializableValues)
                 {
-                    sb.AppendLine("• " + v.ToString());
+                    sb.AppendLine("• " + v.Value.ToString());
                 }
                 return sb.ToString();
             }
@@ -181,11 +199,9 @@ namespace IngameScript2
                 if (split == null || split.Length == 0) return;
                 foreach (var v in split)
                 {
-                    int serialValueIndex = serializableValues.FindIndex((AValue x) => x.key == v[0]);
-                    var cval = serializableValues[serialValueIndex];
-                    if (cval.key != null)
+                    if (serializableValues.ContainsKey(v[0]))
                     {
-                        serializableValues[serialValueIndex] = new AValue(cval, v[1]);
+                        serializableValues[v[0]].UpdateValue(v[1]);
                     }
                 }
             }
@@ -194,27 +210,23 @@ namespace IngameScript2
 
         AConfig config;
 
-        AConfig.AValue c_UpdateEvery = new AConfig.AValue("Update Every", 100);
-        AConfig.AValue c_Speed = new AConfig.AValue("Speed", 0.0f);
-        AConfig.AValue c_Repetition = new AConfig.AValue("Repetition", 0.0f);
-        AConfig.AValue c_Colors = new AConfig.AValue("Colors", new Color[]{Color.Red,Color.Lime,Color.Blue});
-        AConfig.AValue c_LightMode = new AConfig.AValue("Light Mode", new AConfig.AOptions(
-            new List<AConfig.AOption>
-            {
-                new AConfig.AOption(c_LightMode_Normal, true),
-                new AConfig.AOption(c_LightMode_Gradient, false),
-            },
+        AConfig.AValue<int> c_UpdateEvery = new AConfig.AValue<int>("Update Every", 100);
+        AConfig.AValue<float> c_Speed = new AConfig.AValue<float>("Speed", 0.0f);
+        AConfig.AValue<float> c_Repetition = new AConfig.AValue<float>("Repetition", 0.0f);
+        AConfig.AValue<Color[]> c_Colors = new AConfig.AValue<Color[]>("Colors", new Color[]{Color.Red,Color.Lime,Color.Blue});
+        AConfig.AValue<float> c_GradientPatternRepetition = new AConfig.AValue<float>("Gradient pattern repetition", 1f);
+        AConfig.AValue<AConfig.AOptions> c_LightMode = new AConfig.AValue<AConfig.AOptions>("Light Mode", new AConfig.AOptions(
+            new List<AConfig.AOption> { new AConfig.AOption("Normal", true), new AConfig.AOption("Gradient", false) },
             singleSelect: true
         ));
-        AConfig.AValue c_GradientPatternRepetition = new AConfig.AValue("Gradient pattern repetition", 1f);
-        AConfig.AValue c_GroupName = new AConfig.AValue("Group Name", "RGB Lights");
-        const string c_LightMode_Normal = "Normal";
-        const string c_LightMode_Gradient = "Gradient";
+        AConfig.AValue<string> c_GroupName = new AConfig.AValue<string>("Group Name", "RGB Lights");
+
 
         public Program()
         {
             AConfig.SEcho = Echo;
             config = new AConfig(c_UpdateEvery, c_Speed, c_Repetition, c_Colors, c_LightMode, c_GradientPatternRepetition, c_GroupName);
+
             //Runtime.UpdateFrequency = UpdateFrequency.Update1;
         }
 
@@ -222,9 +234,10 @@ namespace IngameScript2
         {
             config.Read(this.Me.CustomData);
             this.Me.CustomData = config.ToString();
-            // Echo(config.ToString());
-            Echo($"Getting ({c_GroupName}): {config.GetValue<string>(c_GroupName)}");
-            Echo($"Getting ({c_UpdateEvery}): {config.GetValue<int>(c_UpdateEvery)}");
+            Echo(config.ToString());
+            Echo($"Getting ({c_GroupName.key}): {c_GroupName.value}");
+            Echo($"Getting ({c_UpdateEvery.key}): {c_UpdateEvery.value}");
+            Echo($"Getting ({c_GradientPatternRepetition.key}): {c_GradientPatternRepetition.value}");
         }
     }
 }
