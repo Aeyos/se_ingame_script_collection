@@ -14,11 +14,12 @@ namespace IngameScript2
         public class AConfig
         {
             public static Action<string> SEcho = (string _) => { };
-            public struct AOption
+            public class AOption
             {
-                public KeyValuePair<string, bool> value;
-                public AOption(string s, bool v) { value = new KeyValuePair<string, bool>(s, v); }
-                public override string ToString() { return (value.Equals(null)) ? "" : $"     [{(value.Value == true ? "X" : "  ")}] {value.Key}"; }
+                public string name;
+                public bool value;
+                public AOption(string name, bool check) { this.name = name; this.value = check; }
+                public override string ToString() { return (value.Equals(null)) ? "" : $"     [{(value == true ? "X" : "  ")}] {name}"; }
                 public static AOption Parse(string v)
                 {
                     var split = v.Trim().Substring(2, v.Length - 2).Split(']').Select(x => x.Trim()).ToArray();
@@ -30,7 +31,7 @@ namespace IngameScript2
                     return new AOption(split[0], false);
                 }
             }
-            public struct AOptions
+            public class AOptions
             {
                 public List<AOption> values;
                 public bool singleSelect;
@@ -51,48 +52,48 @@ namespace IngameScript2
                     return "\n" + string.Join("\n", values.Select(x => x.ToString()));
                 }
 
-                public static AOptions Parse(string s, AOptions originalValue)
+                public void Update(string s)
                 {
-                    var singleSelectValueFound = false;
-                    // Create return object
-                    var options = new AOptions(new List<AOption>());
-                    // Get original options
-                    var originalOptions = (AOptions)originalValue;
-                    // Create map for values that will be read
-                    var optionMap = new Dictionary<string, bool>();
-                    // Split string into lines and lines into pairs of (X|"  ") and Name
-                    var optionSplit = s.Split('\n')?.Select(x => x.Trim().Split(']')?.Select(y => y.Trim()).ToArray()).Where(x => x.Length > 0).ToArray();
-                    // No options found, only name
-                    if (optionSplit.Length == 0) return (AOptions)originalValue;
-                    // For all the read values
-                    foreach (var option in optionSplit)
+                    // Options read from custom data
+                    var markedOptionsFromData = new HashSet<string>();
+                    // Lines of each option in data
+                    var optionDataSplit = s.Split('\n')?.Select(x => x.Trim().Split(']')?.Select(y => y.Trim()).ToArray()).Where(x => x.Length > 0).ToArray();
+                    // If no lines found, skip this
+                    if (optionDataSplit.Length == 0) return;
+                    string firstTrueOption = null;
+                    // For every line of option
+                    foreach (var option in optionDataSplit)
                     {
-                        // Skip if option is not well formatted
+                        // If no value/name found, skip
                         if (option == null || option.Length < 2) continue;
-                        // Add NAME - BOOL to dictionary
-                        var newValue = option[0].ToUpper().Contains("X");
-                        optionMap.Add(option[1], newValue);
-                        // Mark flag single select
-                        if (newValue && originalValue.singleSelect)
+                        // If option was maked
+                        if (option[0].ToUpper().Contains("X"))
                         {
-                            singleSelectValueFound = true;
+                            // Set first marked option
+                            if (firstTrueOption == null) firstTrueOption = option[1];
+                            // Add field name to hashSet
+                            markedOptionsFromData.Add(option[1]);
                         }
                     }
-                    // Is single selection but no value was found, default to original
-                    if (originalOptions.singleSelect && singleSelectValueFound == false)
-                    {
-                        return originalOptions;
+                    // If no option marked as true, skip
+                    if (markedOptionsFromData.Count == 0) return;
+                    // There is no option marked as true and singleSelect, skip
+                    if (firstTrueOption == null && singleSelect) return;
+                    // For every option in definition
+                    foreach (var option in values) {
+                        // Single select
+                        if (singleSelect)
+                        {
+                            // Mark option as true if name is the same as the first marked option
+                            option.value = option.name == firstTrueOption;
+                        }
+                        // Multi-select
+                        else
+                        {
+                            // Mark as true if inside optionsFromData, mark as false if oterwise
+                            option.value = markedOptionsFromData.Contains(option.name);
+                        }
                     }
-                    // For all the original options
-                    foreach (var option in originalOptions.values)
-                    {
-                        // Calculate new value, defaults to originalValue if not found
-                        var newValue = optionMap.ContainsKey(option.value.Key) ? optionMap[option.value.Key] : option.value.Value;
-                        // Add new option to return value
-                        options.Add(new AOption(option.value.Key, newValue));
-                    }
-                    // Returns the object
-                    return options;
                 }
             }
             public abstract class AValue
@@ -161,7 +162,11 @@ namespace IngameScript2
                         }
                         else if (type.IsEquivalentTo(typeof(int[]))) return value.Split(',').Select(x => int.Parse(x.Trim()));
                         else if (type.IsEquivalentTo(typeof(string))) return value;
-                        else if (type.IsEquivalentTo(typeof(AOptions))) return AOptions.Parse(value, (AOptions)(object)originalValue.value);
+                        else if (type.IsEquivalentTo(typeof(AOptions)))
+                        {
+                            ((AOptions)(object)originalValue.value).Update(value);
+                            return originalValue;
+                        }
                     } catch { }
                     return null;
                 }
