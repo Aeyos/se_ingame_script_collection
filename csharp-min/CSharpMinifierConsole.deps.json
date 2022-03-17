@@ -1,0 +1,109 @@
+{
+  "runtimeTarget": {
+    "name": ".NETCoreApp,Version=v6.0",
+    "signature": ""
+  },
+  "compilationOptions": {},
+  "targets": {
+    ".NETCoreApp,Version=v6.0": {
+      "CSharpMinifierConsole/2.0.0": {
+        "dependencies": {
+          "CSharpMinifier": "2.0.0",
+          "IsExternalInit": "1.0.1",
+          "Microsoft.Extensions.FileSystemGlobbing": "6.0.0",
+          "Nullable": "1.3.0",
+          "ThisAssembly.AssemblyInfo": "1.0.9"
+        },
+        "runtime": {
+          "CSharpMinifierConsole.dll": {}
+        }
+      },
+      "IsExternalInit/1.0.1": {},
+      "Microsoft.CSharp/4.5.0": {},
+      "Microsoft.Extensions.FileSystemGlobbing/6.0.0": {
+        "runtime": {
+          "lib/net6.0/Microsoft.Extensions.FileSystemGlobbing.dll": {
+            "assemblyVersion": "6.0.0.0",
+            "fileVersion": "6.0.21.52210"
+          }
+        }
+      },
+      "Nullable/1.3.0": {},
+      "System.Threading.Tasks.Extensions/4.5.4": {},
+      "ThisAssembly.AssemblyInfo/1.0.9": {
+        "dependencies": {
+          "Microsoft.CSharp": "4.5.0",
+          "System.Threading.Tasks.Extensions": "4.5.4",
+          "ThisAssembly.Prerequisites": "1.0.9"
+        }
+      },
+      "ThisAssembly.Prerequisites/1.0.9": {},
+      "CSharpMinifier/2.0.0": {
+        "runtime": {
+          "CSharpMinifier.dll": {}
+        }
+      }
+    }
+  },
+  "libraries": {
+    "CSharpMinifierConsole/2.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "IsExternalInit/1.0.1": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-Md/buF2kqLI/bvmqEwtsCGXKmgbZBzJRW1vz38lyTZKjP4YMXOOSATOSbWg2+S+tlRbrM/8qp9qOBDtqLHBgBw==",
+      "path": "isexternalinit/1.0.1",
+      "hashPath": "isexternalinit.1.0.1.nupkg.sha512"
+    },
+    "Microsoft.CSharp/4.5.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-kaj6Wb4qoMuH3HySFJhxwQfe8R/sJsNJnANrvv8WdFPMoNbKY5htfNscv+LHCu5ipz+49m2e+WQXpLXr9XYemQ==",
+      "path": "microsoft.csharp/4.5.0",
+      "hashPath": "microsoft.csharp.4.5.0.nupkg.sha512"
+    },
+    "Microsoft.Extensions.FileSystemGlobbing/6.0.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-ip8jnL1aPiaPeKINCqaTEbvBFDmVx9dXQEBZ2HOBRXPD1eabGNqP/bKlsIcp7U2lGxiXd5xIhoFcmY8nM4Hdiw==",
+      "path": "microsoft.extensions.filesystemglobbing/6.0.0",
+      "hashPath": "microsoft.extensions.filesystemglobbing.6.0.0.nupkg.sha512"
+    },
+    "Nullable/1.3.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-xHAviTdTY3n+t1nEPN4JPRQR5lI124qRKVw+U9H7dO5sDNPpzoWeo/MQy7dSUmv9eD3k/CJVKokz1tFK+JOzRw==",
+      "path": "nullable/1.3.0",
+      "hashPath": "nullable.1.3.0.nupkg.sha512"
+    },
+    "System.Threading.Tasks.Extensions/4.5.4": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-zteT+G8xuGu6mS+mzDzYXbzS7rd3K6Fjb9RiZlYlJPam2/hU7JCBZBVEcywNuR+oZ1ncTvc/cq0faRr3P01OVg==",
+      "path": "system.threading.tasks.extensions/4.5.4",
+      "hashPath": "system.threading.tasks.extensions.4.5.4.nupkg.sha512"
+    },
+    "ThisAssembly.AssemblyInfo/1.0.9": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-caykAaNTmWTTAQKzIeTZ/HoN2+7ZPuEPGtgQ0ZrYnb2Yz6Zfag/SZOw9vdwfBdJALo03XNEi+0KuWZRT0rtTNw==",
+      "path": "thisassembly.assemblyinfo/1.0.9",
+      "hashPath": "thisassembly.assemblyinfo.1.0.9.nupkg.sha512"
+    },
+    "ThisAssembly.Prerequisites/1.0.9": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-+yFoTjL8TLEt9lYaR0wDDrh7JMac1/CMdluDrGxu9Et5EwgylcFxDST1si+Z4AskNdV4kLu7PlT8aZc6hlsKpA==",
+      "path": "thisassembly.prerequisites/1.0.9",
+      "hashPath": "thisassembly.prerequisites.1.0.9.nupkg.sha512"
+    },
+    "CSharpMinifier/2.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    }
+  }
+}

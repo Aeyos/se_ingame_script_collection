@@ -6,19 +6,17 @@ using System.Text;
 using VRage.Game.ModAPI.Ingame.Utilities;
 using VRageMath;
 
-
-namespace IngameScript
+namespace IngameScript2
 {
     partial class Program : MyGridProgram
     {
         // ** START OF SE CODE ** //
-        // Create config object
         AConfig config;
-        // Create config options
-        AConfig.AValue<string> c_GroupName = new AConfig.AValue<string>("Group Name", "RGB Lights");
-        AConfig.AValue<float> c_Speed = new AConfig.AValue<float>("Speed", 1.0f);
-        AConfig.AValue<Color[]> c_Colors = new AConfig.AValue<Color[]>("Colors", new Color[] { Color.Red, Color.Lime, Color.Blue });
+
         AConfig.AValue<int> c_UpdateEvery = new AConfig.AValue<int>("Update Every", 100);
+        AConfig.AValue<float> c_Speed = new AConfig.AValue<float>("Speed", 1.0f);
+        AConfig.AValue<Color[]> c_Colors = new AConfig.AValue<Color[]>("Colors", new Color[]{Color.Red,Color.Lime,Color.Blue});
+        AConfig.AValue<float> c_GradientPatternRepetition = new AConfig.AValue<float>("Gradient repetition", 1f);
         const String LIGHT_MODE_NORMAL = "Normal";
         const String LIGHT_MODE_GRADIENT = "Gradient";
         AConfig.AOptions c_LightMode = new AConfig.AOptions(
@@ -26,135 +24,34 @@ namespace IngameScript
             new List<AConfig.AOption> { new AConfig.AOption(LIGHT_MODE_NORMAL, true), new AConfig.AOption(LIGHT_MODE_GRADIENT, false) },
             singleSelect: true
         );
-        const String FLOW_MODE_NORMAL = "First to last on group";
-        const String FLOW_MODE_REVERSED = "Last to first on group";
-        AConfig.AValue<float> c_GradientPatternRepetition = new AConfig.AValue<float>("Gradient repetition", 1f);
         AConfig.AOptions c_FlowMode = new AConfig.AOptions(
             "Sequence on group",
-            new List<AConfig.AOption> { new AConfig.AOption(FLOW_MODE_NORMAL, true), new AConfig.AOption(FLOW_MODE_REVERSED, false) },
+            new List<AConfig.AOption> { new AConfig.AOption("First to last", true), new AConfig.AOption("Last to first", false) },
             singleSelect: true
         );
+        AConfig.AValue<string> c_GroupName = new AConfig.AValue<string>("Group Name", "RGB Lights");
 
-        // Create control variables
-        public float progress = 0;
-        public int currentFrame = 0;
-        // SE "on compile" function
+
         public Program()
         {
-            Runtime.UpdateFrequency = UpdateFrequency.Update1;
-            config = new AConfig(
-                c_GroupName,
-                c_Speed,
-                c_Colors,
-                c_UpdateEvery,
-                c_LightMode,
-                c_GradientPatternRepetition
-            );
+            AConfig.SEcho = Echo;
+            config = new AConfig(c_GroupName, c_Speed, c_Colors, c_UpdateEvery, c_LightMode, c_GradientPatternRepetition, c_FlowMode);
+
+            //Runtime.UpdateFrequency = UpdateFrequency.Update1;
         }
-        // SE "on run" function
+
         public void Main(string argument, UpdateType updateType)
         {
-            // Current frame is past limit
-            if (currentFrame++ > c_UpdateEvery.value)
-            {
-                // Reset it
-                currentFrame = 0;
-            }
-            // Current frame is not 0
-            if (currentFrame != 0)
-            {
-                // Skip it
-                return;
-            }
-            // Read config, parse, re-write to custom data
             config.Read(this.Me.CustomData);
             this.Me.CustomData = config.ToString();
-            // Display config
             Echo(config.ToString());
-            // Get grid
-            IMyGridTerminalSystem grid = this.GridTerminalSystem;
-            // Get programmable block
-            IMyProgrammableBlock me = this.Me;
-            // Init variables from config
-            var groupName = c_GroupName.value;
-            var speed = c_Speed.value;
-            var updateTime = c_UpdateEvery.value;
-            var colors = c_Colors.value;
-            var gradientMode = c_LightMode.Selected(LIGHT_MODE_GRADIENT);
-            // Allocate resourse
-            var blockGroups = new List<IMyBlockGroup>();
-            // Get blocks groups
-            grid.GetBlockGroups(blockGroups);
-            // Get block groups names for gradient lights (starts with name)
-            blockGroups = blockGroups.FindAll(x => x.Name.StartsWith(groupName));
-            // Block groups is EMPTY
-            if (blockGroups.Count == 0)
-            {
-                Echo($"No groups found with name \"{groupName}\"");
-            }
-
-            // Initialize light block list
-            var lights = new List<IMyLightingBlock>();
-
-            // Check if there is group
-            Echo($"RGB Groups:");
-
-            // Check progress through rgb
-            progress += (0.002f * speed * updateTime);
-            progress %= colors.Length;
-
-            foreach (var blkGroup in blockGroups)
-            {
-                // Get lights from group
-                blkGroup.GetBlocksOfType<IMyLightingBlock>(lights);
-                // Output info
-                Echo($"    {blkGroup.Name} ({lights.Count} blocks)");
-                // Apply FLOW MODE configuration
-                if (c_FlowMode.Selected(FLOW_MODE_REVERSED))
-                {
-                    lights.Reverse();
-                }
-
-                // If there are lights
-                if (lights.Count > 0)
-                {
-                    // Set gradient offset to zero
-                    float gradientOffset = 0f;
-                    // Calculate offset adder (depends on number of blocks and number of colors)
-                    float gradientOffsetAdder = (float)colors.Length / (float)lights.Count;
-                    // Define color variable
-                    Color color = Color.White;
-                    // No gradient mode, assign same color for all
-                    if (gradientMode == false)
-                    {
-                        // calculate it here once
-                        color = VRageMath.Color.Lerp(colors[MathHelper.Floor(progress)], colors[MathHelper.CeilToInt(progress) % colors.Length], progress - MathHelper.Floor(progress));
-                    }
-                    // For every light
-                    foreach (var light in lights)
-                    {
-                        // Is gradient mode
-                        if (gradientMode)
-                        {
-                            // Calculate progress with offset
-                            float gradientProgress = (progress + gradientOffset) % colors.Length;
-                            // Get color according to custom progress
-                            color = VRageMath.Color.Lerp(colors[MathHelper.Floor(gradientProgress)], colors[MathHelper.CeilToInt(gradientProgress) % colors.Length], (float)gradientProgress - (float)MathHelper.Floor(gradientProgress));
-                            // Set color
-                            light.Color = color;
-                            // Update offset for next light
-                            gradientOffset += gradientOffsetAdder;
-                        }
-                        else
-                        {
-                            // Set color
-                            light.Color = color;
-                        }
-                    }
-                }
-            }
+            Echo($"Getting ({c_GroupName.key}): {c_GroupName.value}");
+            Echo($"Getting ({c_UpdateEvery.key}): {c_UpdateEvery.value}");
+            Echo($"Getting ({c_GradientPatternRepetition.key}): {c_GradientPatternRepetition.value}");
+            Echo($"Getting ({c_LightMode.key} - {LIGHT_MODE_NORMAL}): {c_LightMode.Selected(LIGHT_MODE_NORMAL)}");
+            Echo($"Getting ({c_LightMode.key} - {LIGHT_MODE_GRADIENT}): {c_LightMode.Selected(LIGHT_MODE_GRADIENT)}");
         }
- 
+
         // ** START OF AEYOS CONFIG HELPER ** //
         public class AConfig
         {
