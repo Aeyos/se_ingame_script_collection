@@ -7,7 +7,7 @@ using VRage.Game.ModAPI.Ingame.Utilities;
 using VRageMath;
 
 
-namespace IngameScript
+namespace ALight
 {
     partial class Program : MyGridProgram
     {
@@ -38,6 +38,7 @@ namespace IngameScript
         // Create control variables
         public float progress = 0;
         public int currentFrame = 0;
+
         // SE "on compile" function
         public Program()
         {
@@ -47,10 +48,12 @@ namespace IngameScript
                 c_Speed,
                 c_Colors,
                 c_UpdateEvery,
+                c_FlowMode,
                 c_LightMode,
                 c_GradientPatternRepetition
             );
         }
+
         // SE "on run" function
         public void Main(string argument, UpdateType updateType)
         {
@@ -81,6 +84,7 @@ namespace IngameScript
             var updateTime = c_UpdateEvery.value;
             var colors = c_Colors.value;
             var gradientMode = c_LightMode.Selected(LIGHT_MODE_GRADIENT);
+            var gradientMultiplier = c_GradientPatternRepetition.value;
             // Allocate resourse
             var blockGroups = new List<IMyBlockGroup>();
             // Get blocks groups
@@ -137,7 +141,7 @@ namespace IngameScript
                         if (gradientMode)
                         {
                             // Calculate progress with offset
-                            float gradientProgress = (progress + gradientOffset) % colors.Length;
+                            float gradientProgress = ((progress + gradientOffset) * gradientMultiplier) % colors.Length;
                             // Get color according to custom progress
                             color = VRageMath.Color.Lerp(colors[MathHelper.Floor(gradientProgress)], colors[MathHelper.CeilToInt(gradientProgress) % colors.Length], (float)gradientProgress - (float)MathHelper.Floor(gradientProgress));
                             // Set color
