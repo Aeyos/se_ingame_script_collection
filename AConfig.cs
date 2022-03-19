@@ -6,7 +6,7 @@ using System.Text;
 using VRage.Game.ModAPI.Ingame.Utilities;
 using VRageMath;
 
-namespace Main
+namespace AConfig
 {
     partial class Program : MyGridProgram
     {

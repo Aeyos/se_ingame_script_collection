@@ -106,9 +106,10 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="ACommand.cs" />
     <Compile Include="ALight.cs" />
     <Compile Include="ALight_Header.cs" />
-    <Compile Include="Main.cs" />
+    <Compile Include="AConfig.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />

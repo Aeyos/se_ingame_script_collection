@@ -1,0 +1,2 @@
+A:\Users\Aeyos\AppData\Roaming\SpaceEngineers\Mods\IngameScripts\obj\Release\IngameScripts.csproj.AssemblyReference.cache
+A:\Users\Aeyos\AppData\Roaming\SpaceEngineers\Mods\IngameScripts\obj\Release\IngameScripts.csproj.CoreCompileInputs.cache

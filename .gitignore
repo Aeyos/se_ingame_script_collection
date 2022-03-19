@@ -30,3 +30,5 @@
 *.exe
 *.out
 *.app
+obj/Release/.NETFramework,Version=v4.6.AssemblyAttributes.cs
+obj/

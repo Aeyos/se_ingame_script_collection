@@ -7,6 +7,10 @@ using VRage.Game.ModAPI.Ingame.Utilities;
 using VRageMath;
 
 
+// TODO
+// [*] Add Random Mode
+// [*] Skip off blocks
+
 namespace ALight
 {
     partial class Program : MyGridProgram
@@ -15,20 +19,24 @@ namespace ALight
         // Create config object
         AConfig config;
         // Create config options
-        AConfig.AValue<string> c_GroupName = new AConfig.AValue<string>("Group Name", "RGB Lights");
-        AConfig.AValue<float> c_Speed = new AConfig.AValue<float>("Speed", 1.0f);
+        AConfig.AValue<string> c_GroupName = new AConfig.AValue<string>("Group Name", "ALight Control");
+        AConfig.AValue<float> c_Speed = new AConfig.AValue<float>("Speed", 3.0f);
         AConfig.AValue<Color[]> c_Colors = new AConfig.AValue<Color[]>("Colors", new Color[] { Color.Red, Color.Lime, Color.Blue });
-        AConfig.AValue<int> c_UpdateEvery = new AConfig.AValue<int>("Update Every", 100);
+        AConfig.AValue<int> c_UpdateEvery = new AConfig.AValue<int>("Update Every", 5);
         const String LIGHT_MODE_NORMAL = "Normal";
         const String LIGHT_MODE_GRADIENT = "Gradient";
+        const String LIGHT_MODE_RANDOM = "Random";
+        const String LIGHT_MODE_PULSE = "Pulse";
         AConfig.AOptions c_LightMode = new AConfig.AOptions(
             "Light Mode",
-            new List<AConfig.AOption> { new AConfig.AOption(LIGHT_MODE_NORMAL, true), new AConfig.AOption(LIGHT_MODE_GRADIENT, false) },
+            new List<AConfig.AOption> { new AConfig.AOption(LIGHT_MODE_NORMAL, true), new AConfig.AOption(LIGHT_MODE_GRADIENT, false), new AConfig.AOption(LIGHT_MODE_RANDOM, false), new AConfig.AOption(LIGHT_MODE_PULSE, false) },
             singleSelect: true
         );
         const String FLOW_MODE_NORMAL = "First to last on group";
         const String FLOW_MODE_REVERSED = "Last to first on group";
         AConfig.AValue<float> c_GradientPatternRepetition = new AConfig.AValue<float>("Gradient repetition", 1f);
+        AConfig.AValue<float> c_PulseLength = new AConfig.AValue<float>("Pulse length (in blocks)", 1f);
+
         AConfig.AOptions c_FlowMode = new AConfig.AOptions(
             "Sequence on group",
             new List<AConfig.AOption> { new AConfig.AOption(FLOW_MODE_NORMAL, true), new AConfig.AOption(FLOW_MODE_REVERSED, false) },
@@ -38,6 +46,24 @@ namespace ALight
         // Create control variables
         public float progress = 0;
         public int currentFrame = 0;
+        Random random = new Random();
+
+        // Update custom data after changing value from command
+        public void UpdateCustomData()
+        {
+            this.Me.CustomData = ACommands.ToString();
+            this.Me.CustomData += "\n\n";
+            this.Me.CustomData += config.ToString();
+        }
+
+        public int NormalizeIndex(int index, int max, int min = 0)
+        {
+            if (index < min)
+            {
+                return max + index + min;
+            }
+            return (index % max) + min;
+        }
 
         // SE "on compile" function
         public Program()
@@ -50,13 +76,56 @@ namespace ALight
                 c_UpdateEvery,
                 c_FlowMode,
                 c_LightMode,
-                c_GradientPatternRepetition
+                c_GradientPatternRepetition,
+                c_PulseLength
             );
+            ACommands.AddCommand("SET:COLOR", (string[] args) =>
+            {
+                c_Colors.UpdateValue(args[0]);
+                this.UpdateCustomData();
+            }, $"SET:COLOR:<COLOR1>,<COLOR2>{Environment.NewLine}        where COLOR is 3 component number, ex: <255,0,0>");
+            ACommands.AddCommand("SET:LIGHT_MODE", (string[] args) =>
+            {
+                switch (args[0])
+                {
+                    case "NORMAL": c_LightMode.Select(LIGHT_MODE_NORMAL); break;
+                    case "GRADIENT": c_LightMode.Select(LIGHT_MODE_GRADIENT); break;
+                    case "RANDOM": c_LightMode.Select(LIGHT_MODE_RANDOM); break;
+                    case "PULSE": c_LightMode.Select(LIGHT_MODE_PULSE); break;
+                    default: Echo($"Property not found: {args[0]}"); return;
+                }
+                this.UpdateCustomData();
+            }, $"<MODE>{Environment.NewLine}        where MODE is one of:\n            [NORMAL, GRADIENT, RANDOM, PULSE]");
+            ACommands.AddCommand("SET", (string[] args) =>
+            {
+                switch (args[0])
+                {
+                    case "SPEED": c_Speed.UpdateValue(args[1]); break;
+                    case "UPDATEEVERY": c_UpdateEvery.UpdateValue(args[1]); break;
+                    case "GRADIENTREPETITION": c_GradientPatternRepetition.UpdateValue(args[1]); break;
+                    default: Echo($"Property not found: {args[0]}"); return;
+                }
+                this.UpdateCustomData();
+            }, $"<PROP>:<VALUE>{Environment.NewLine}        where PROPS is one of:\n            [SPEED, UPDATEEVERY, GRADIENTREPETITION] and VALUE is a valid number");
+            
+            //c_LightMode
+            //c_FlowMode
+
         }
 
         // SE "on run" function
         public void Main(string argument, UpdateType updateType)
         {
+            // Script run by other script/terminal/timer
+            if ((updateType & (UpdateType.Script | UpdateType.Terminal | UpdateType.Trigger)) > 0)
+            {
+                // Parse command
+                ACommands.Parse(argument);
+                // Update data
+                this.UpdateCustomData();
+                // Skip rest of code
+                return;
+            }
             // Current frame is past limit
             if (currentFrame++ > c_UpdateEvery.value)
             {
@@ -71,7 +140,7 @@ namespace ALight
             }
             // Read config, parse, re-write to custom data
             config.Read(this.Me.CustomData);
-            this.Me.CustomData = config.ToString();
+            this.UpdateCustomData();
             // Display config
             Echo(config.ToString());
             // Get grid
@@ -83,8 +152,12 @@ namespace ALight
             var speed = c_Speed.value;
             var updateTime = c_UpdateEvery.value;
             var colors = c_Colors.value;
+            var normalMode = c_LightMode.Selected(LIGHT_MODE_NORMAL);
             var gradientMode = c_LightMode.Selected(LIGHT_MODE_GRADIENT);
+            var randomMode = c_LightMode.Selected(LIGHT_MODE_RANDOM);
+            var pulseMode = c_LightMode.Selected(LIGHT_MODE_PULSE);
             var gradientMultiplier = c_GradientPatternRepetition.value;
+            var pulseLength = c_PulseLength.value;
             // Allocate resourse
             var blockGroups = new List<IMyBlockGroup>();
             // Get blocks groups
@@ -101,9 +174,9 @@ namespace ALight
             var lights = new List<IMyLightingBlock>();
 
             // Check if there is group
-            Echo($"RGB Groups:");
+            Echo($"Light Groups:");
 
-            // Check progress through rgb
+            // Check progress through colors
             progress += (0.002f * speed * updateTime);
             progress %= colors.Length;
 
@@ -129,7 +202,7 @@ namespace ALight
                     // Define color variable
                     Color color = Color.White;
                     // No gradient mode, assign same color for all
-                    if (gradientMode == false)
+                    if (normalMode || pulseMode)
                     {
                         // calculate it here once
                         color = VRageMath.Color.Lerp(colors[MathHelper.Floor(progress)], colors[MathHelper.CeilToInt(progress) % colors.Length], progress - MathHelper.Floor(progress));
@@ -137,6 +210,10 @@ namespace ALight
                     // For every light
                     foreach (var light in lights)
                     {
+                        // Skip lights that are not working
+                        if (light.IsFunctional == false || light.IsWorking == false) continue;
+                        // Get light index
+                        var lightIndex = lights.IndexOf(light);
                         // Is gradient mode
                         if (gradientMode)
                         {
@@ -144,21 +221,115 @@ namespace ALight
                             float gradientProgress = ((progress + gradientOffset) * gradientMultiplier) % colors.Length;
                             // Get color according to custom progress
                             color = VRageMath.Color.Lerp(colors[MathHelper.Floor(gradientProgress)], colors[MathHelper.CeilToInt(gradientProgress) % colors.Length], (float)gradientProgress - (float)MathHelper.Floor(gradientProgress));
-                            // Set color
-                            light.Color = color;
                             // Update offset for next light
                             gradientOffset += gradientOffsetAdder;
                         }
-                        else
+                        else if (randomMode)
                         {
-                            // Set color
-                            light.Color = color;
+                            // Get random index
+                            var randIndex = random.Next(0, colors.Length);
+                            // Calculate color between random color and next
+                            color = VRageMath.Color.Lerp(colors[randIndex], colors[(randIndex + 1) % colors.Length], (float)random.NextDouble());
                         }
+                        else if (pulseMode)
+                        {
+                            // Half length
+                            float halfLength = pulseLength / 2;
+                            // LightProgress to BlockProgress
+                            float blockProgress = (progress / colors.Length) * lights.Count;
+                            // If current light is in range of the pulse
+                            if (
+                                (lightIndex >= blockProgress && lightIndex <= blockProgress + pulseLength)
+                                ||
+                                (blockProgress + pulseLength > lights.Count && lightIndex < blockProgress + pulseLength - lights.Count)
+                            )
+                            {
+                                float localLerp;
+                                if ((lightIndex > blockProgress ? lightIndex : lightIndex + lights.Count) - (blockProgress + pulseLength - 1) > 0)
+                                {
+                                    // First light,set brightnes too max
+                                    localLerp = 1;
+                                }
+                                else
+                                {
+                                    // Get fade ammount
+                                    localLerp = ((lightIndex > blockProgress ? lightIndex : lightIndex + lights.Count) - blockProgress) / pulseLength;
+                                }
+                                // set minum fade to 20% of color
+                                localLerp = Math.Max(0.2f, localLerp);
+                                // Fade color based on ammount
+                                light.Color = Color.Lerp(color, Color.Black, 1 - localLerp);
+                            }
+                            else
+                            {
+                                // Fade out the color
+                                light.Color = Color.Black;
+                            }
+                            // Skip default assignment to color
+                            continue;
+                        }
+                        // Set color
+                        light.Color = color;
                     }
                 }
             }
         }
- 
+
+        // ** START OF AEYOS COMMAND HELPER ** //
+        public static class ACommands
+        {
+            private static Dictionary<String, ACommand> commands = new Dictionary<String, ACommand>();
+            private class ACommand
+            {
+                public Action<string[]> action;
+                public String command;
+                public String description;
+                override public String ToString()
+                {
+                    return $"> {command}{Environment.NewLine}    Usage: {command}:{description ?? "Not Defined"}";
+                }
+            }
+
+            public static void AddCommand(String commandName, Action<string[]> action, String description = null)
+            {
+                commands[commandName] = new ACommand()
+                {
+                    action = action,
+                    command = commandName,
+                    description = description,
+                };
+            }
+
+            internal static bool Parse(string argumentString)
+            {
+                var command = argumentString;
+                var arguments = new List<string>();
+
+                while (command.Length > 0)
+                {
+                    if (commands.ContainsKey(command))
+                    {
+                        commands[command].action.Invoke(arguments.ToArray());
+                        return true;
+                    }
+                    var splitIndex = command.LastIndexOf(":");
+                    if (splitIndex < 0) return false;
+                    arguments.Insert(0, command.Substring(splitIndex + 1));
+                    command = command.Substring(0, splitIndex);
+                }
+                return false;
+            }
+
+            new internal static string ToString()
+            {
+                return string.Join("\n",
+                    "    /*~/                                                \\~*\\\n"
+                    + "/*~/    Commands Defined By Script    \\~*\\\n"
+                    + "   /*~/                                                  \\~*\\\n\n"
+                    + String.Join("\n\n", commands.Values.Select((x) => x.ToString())));
+            }
+        }
+        // ** END OF AEYOS COMMAND HELPER ** //
         // ** START OF AEYOS CONFIG HELPER ** //
         public class AConfig
         {
@@ -281,6 +452,14 @@ namespace ALight
                     this.options.Add(element.name, element);
                 }
 
+                private void DeselectAll()
+                {
+                    foreach(var option in this.options)
+                    {
+                        option.Value.value = false;
+                    }
+                }
+
                 public bool Selected(string optionName)
                 {
                     if (options.ContainsKey(optionName))
@@ -288,6 +467,27 @@ namespace ALight
                         return options[optionName].value;
                     }
                     return false;
+                }
+
+                public void Select(string optionName)
+                {
+                    if (options.ContainsKey(optionName))
+                    {
+                        if (singleSelect)
+                        {
+                            DeselectAll();
+                        }
+                        options[optionName].value = true;
+                    }
+                }
+
+                public void Toggle(string optionName)
+                {
+                    if (singleSelect) throw new Exception("Toggle is only available when options are NOT single");
+                    if (options.ContainsKey(optionName))
+                    {
+                        options[optionName].value = !options[optionName].value;
+                    }
                 }
 
                 public override string ToString()
