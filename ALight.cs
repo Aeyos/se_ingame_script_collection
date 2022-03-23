@@ -23,6 +23,8 @@ namespace ALight
         AConfig.AValue<float> c_Speed = new AConfig.AValue<float>("Speed", 3.0f);
         AConfig.AValue<Color[]> c_Colors = new AConfig.AValue<Color[]>("Colors", new Color[] { Color.Red, Color.Lime, Color.Blue });
         AConfig.AValue<int> c_UpdateEvery = new AConfig.AValue<int>("Update Every", 5);
+        AConfig.AValue<float> c_GradientPatternRepetition = new AConfig.AValue<float>("Gradient repetition", 1f);
+        AConfig.AValue<float> c_PulseLength = new AConfig.AValue<float>("Pulse length (in blocks)", 1f);
         const String LIGHT_MODE_NORMAL = "Normal";
         const String LIGHT_MODE_GRADIENT = "Gradient";
         const String LIGHT_MODE_RANDOM = "Random";
@@ -34,9 +36,6 @@ namespace ALight
         );
         const String FLOW_MODE_NORMAL = "First to last on group";
         const String FLOW_MODE_REVERSED = "Last to first on group";
-        AConfig.AValue<float> c_GradientPatternRepetition = new AConfig.AValue<float>("Gradient repetition", 1f);
-        AConfig.AValue<float> c_PulseLength = new AConfig.AValue<float>("Pulse length (in blocks)", 1f);
-
         AConfig.AOptions c_FlowMode = new AConfig.AOptions(
             "Sequence on group",
             new List<AConfig.AOption> { new AConfig.AOption(FLOW_MODE_NORMAL, true), new AConfig.AOption(FLOW_MODE_REVERSED, false) },
@@ -53,9 +52,10 @@ namespace ALight
         {
             this.Me.CustomData = ACommands.ToString();
             this.Me.CustomData += "\n\n";
-            this.Me.CustomData += config.ToString();
+            this.Me.CustomData += config.ToString(header: true);
         }
 
+        // Get index in range using modulus
         public int NormalizeIndex(int index, int max, int min = 0)
         {
             if (index < min)
@@ -65,9 +65,20 @@ namespace ALight
             return (index % max) + min;
         }
 
+        public string Tab(int count)
+        {
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0;i<count;i++)
+            {
+                sb.Append("    ");
+            }
+            return sb.ToString();
+        }
+
         // SE "on compile" function
         public Program()
         {
+            // Run every frame, but skips frame based on UpdateEvery prop
             Runtime.UpdateFrequency = UpdateFrequency.Update1;
             config = new AConfig(
                 c_GroupName,
@@ -79,11 +90,13 @@ namespace ALight
                 c_GradientPatternRepetition,
                 c_PulseLength
             );
+            // Add command set color
             ACommands.AddCommand("SET:COLOR", (string[] args) =>
             {
                 c_Colors.UpdateValue(args[0]);
                 this.UpdateCustomData();
-            }, $"SET:COLOR:<COLOR1>,<COLOR2>{Environment.NewLine}        where COLOR is 3 component number, ex: <255,0,0>");
+            }, $"<COLOR>,<COLOR>,...,<COLOR>{Environment.NewLine}{Tab(2)}where COLOR is 3 component number, ex: <255,0,0>");
+            // Add command set light mode
             ACommands.AddCommand("SET:LIGHT_MODE", (string[] args) =>
             {
                 switch (args[0])
@@ -95,22 +108,32 @@ namespace ALight
                     default: Echo($"Property not found: {args[0]}"); return;
                 }
                 this.UpdateCustomData();
-            }, $"<MODE>{Environment.NewLine}        where MODE is one of:\n            [NORMAL, GRADIENT, RANDOM, PULSE]");
+            }, $"<MODE>{Environment.NewLine}{Tab(2)}where MODE is one of:\n{Tab(3)}[NORMAL, GRADIENT, RANDOM, PULSE]");
+            // Add command set flow mode
+            ACommands.AddCommand("SET:FLOW_MODE", (string[] args) =>
+            {
+                switch (args[0])
+                {
+                    case "NORMAL": c_FlowMode.Select(FLOW_MODE_NORMAL); break;
+                    case "REVERSE": c_FlowMode.Select(FLOW_MODE_REVERSED); break;
+                    default: Echo($"Property not found: {args[0]}"); return;
+                }
+                this.UpdateCustomData();
+            }, $"<MODE>{Environment.NewLine}{Tab(2)}where MODE is one of:\n{Tab(3)}[NORMAL, REVERSE]");
+            // Add command set PROP
             ACommands.AddCommand("SET", (string[] args) =>
             {
                 switch (args[0])
                 {
                     case "SPEED": c_Speed.UpdateValue(args[1]); break;
-                    case "UPDATEEVERY": c_UpdateEvery.UpdateValue(args[1]); break;
-                    case "GRADIENTREPETITION": c_GradientPatternRepetition.UpdateValue(args[1]); break;
+                    case "UPDATE_EVERY": c_UpdateEvery.UpdateValue(args[1]); break;
+                    case "GRADIENT_REPETITION": c_GradientPatternRepetition.UpdateValue(args[1]); break;
+                    case "GROUP_NAME": c_GroupName.UpdateValue(args[1]); break;
+                    case "PULSE_LENGTH": c_PulseLength.UpdateValue(args[1]); break;
                     default: Echo($"Property not found: {args[0]}"); return;
                 }
                 this.UpdateCustomData();
-            }, $"<PROP>:<VALUE>{Environment.NewLine}        where PROPS is one of:\n            [SPEED, UPDATEEVERY, GRADIENTREPETITION] and VALUE is a valid number");
-            
-            //c_LightMode
-            //c_FlowMode
-
+            }, $"<PROP>:<VALUE>{Environment.NewLine}{Tab(2)}where PROP is one of:\n{Tab(3)}[SPEED, UPDATE_EVERY, GRADIENT_REPETITION, GROUP_NAME,\n{Tab(3)}PULSE_LENGTH] and VALUE is a valid number or text");
         }
 
         // SE "on run" function
@@ -302,6 +325,20 @@ namespace ALight
 
             internal static bool Parse(string argumentString)
             {
+                if (argumentString.IndexOf(";") > 0)
+                {
+                    string[] cmds = argumentString.Split(';');
+                    foreach (string cmd in cmds)
+                    {
+                        if (ParseSingleCommand(cmd) == false) { return false; }
+                    }
+                    return true;
+                }
+                return ParseSingleCommand(argumentString);
+            }
+
+            private static bool ParseSingleCommand(string argumentString)
+            {
                 var command = argumentString;
                 var arguments = new List<string>();
 
@@ -323,9 +360,9 @@ namespace ALight
             new internal static string ToString()
             {
                 return string.Join("\n",
-                    "    /*~/                                                \\~*\\\n"
-                    + "/*~/    Commands Defined By Script    \\~*\\\n"
-                    + "   /*~/                                                  \\~*\\\n\n"
+                    "---------------------------------------------------------------------------------------------------\n"
+                    + "                                      Commands Defined By Script\n"
+                    + "---------------------------------------------------------------------------------------------------\n\n"
                     + String.Join("\n\n", commands.Values.Select((x) => x.ToString())));
             }
         }
@@ -548,14 +585,26 @@ namespace ALight
                 };
             }
             public Dictionary<string, AValue> serializableValues = new Dictionary<string, AValue>();
-            override public string ToString()
+            public string ToString(bool header = false)
             {
                 var sb = new StringBuilder();
+                if (header)
+                {
+                    sb.AppendLine(
+                        "---------------------------------------------------------------------------------------------------\n"
+                        + "                                    Configuration Defined By Script\n"
+                        + "---------------------------------------------------------------------------------------------------\n"
+                    );
+                }
                 foreach (var v in serializableValues)
                 {
                     sb.AppendLine("\u2022 " + v.Value.ToString());
                 }
                 return sb.ToString();
+            }
+            public override string ToString()
+            {
+                return this.ToString(false);
             }
             public void Read(string values)
             {
